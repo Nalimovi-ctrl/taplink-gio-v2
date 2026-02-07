@@ -49,81 +49,103 @@
     <button type="submit">Отправить</button>
   </form>
 
-  <script>
-    /* ---------- Логика звёзд и переходов ---------- */
+<script>
+    /* --- СИСТЕМА ТРЕКИНГА --- */
+    
+    // 1. Функция отправки данных на сервер
+    async function trackEvent(type, target) {
+        try {
+            await fetch('/track', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ type, target })
+            });
+        } catch (e) {
+            console.error('Ошибка трекинга:', e);
+        }
+    }
+
+    // 2. Отслеживаем посещение страницы сразу при загрузке
+    document.addEventListener('DOMContentLoaded', () => {
+        trackEvent('visit', 'homepage');
+    });
+
+    /* --- ЛОГИКА САЙТА --- */
+
     let currentRating = 0;
     let currentSystem = '';
 
     function rateAndGo(system) {
-      currentSystem = system;
-      currentRating = 0;
+        currentSystem = system;
+        currentRating = 0;
 
-      // ➜ СКРЫВАЕМ форму при смене системы
-      document.getElementById('managerForm').style.display = 'none';
+        // Трекаем, что человек нажал на кнопку выбора (еще не проголосовал)
+        trackEvent('click', `choose_${system}`);
 
-      // Показываем звёзды выбранной системы
-      document.getElementById(system + 'Stars').style.display = 'block';
-      document.getElementById(system + 'GoBtn').style.display = 'inline-block';
+        document.getElementById('managerForm').style.display = 'none';
+        document.getElementById(system + 'Stars').style.display = 'block';
+        document.getElementById(system + 'GoBtn').style.display = 'inline-block';
 
-      // Прячем звёзды другой системы
-      const other = system === 'yandex' ? 'google' : 'yandex';
-      document.getElementById(other + 'Stars').style.display = 'none';
-      document.getElementById(other + 'GoBtn').style.display = 'none';
+        const other = system === 'yandex' ? 'google' : 'yandex';
+        document.getElementById(other + 'Stars').style.display = 'none';
+        document.getElementById(other + 'GoBtn').style.display = 'none';
 
-      // Сброс выделения
-      document.querySelectorAll('#' + system + 'Stars .star').forEach(s => s.classList.remove('selected'));
+        document.querySelectorAll('#' + system + 'Stars .star').forEach(s => s.classList.remove('selected'));
     }
 
-    /* Выбор звезды (общий обработчик) */
+    /* Выбор звезды */
     document.addEventListener('click', e => {
-      if (e.target.classList.contains('star') && e.target.closest('.stars')) {
-        const starsBlock = e.target.closest('.stars');
-        currentRating = parseInt(e.target.dataset.v);
-        starsBlock.querySelectorAll('.star').forEach((x, i) => x.classList.toggle('selected', i < currentRating));
-      }
+        if (e.target.classList.contains('star') && e.target.closest('.stars')) {
+            const starsBlock = e.target.closest('.stars');
+            currentRating = parseInt(e.target.dataset.v);
+            starsBlock.querySelectorAll('.star').forEach((x, i) => x.classList.toggle('selected', i < currentRating));
+        }
     });
 
     /* Отправка оценки */
-    function submitRating(system) {
-      if (currentRating === 5) {
-        // 5 звёзд → переход
-        if (system === 'yandex') {
-          window.location.href = 'https://yandex.ru/maps/org/gio_s_gastrobar/217378885487/reviews/?ll=38.987867%2C55.808432&z=16';
-        } else if (system === 'google') {
-          window.location.href = 'https://www.google.com/search?q=Gio%27s+Gastrobar+Отзывы#lkt=LocalPoiReviews';
+    async function submitRating(system) {
+        if (currentRating === 5) {
+            // Трекаем успех и переход
+            await trackEvent('click', `redirect_to_${system}`);
+            
+            if (system === 'yandex') {
+                window.location.href = 'https://yandex.ru/maps/org/gio_s_gastrobar/217378885487/reviews/?ll=38.987867%2C55.808432&z=16';
+            } else if (system === 'google') {
+                window.location.href = 'https://www.google.com/search?q=Gio%27s+Gastrobar+Отзывы#lkt=LocalPoiReviews';
+            }
+        } else {
+            // Трекаем, что оценка низкая, открываем форму
+            trackEvent('view', `open_internal_form_${system}_rating_${currentRating}`);
+            showForm();
         }
-      } else {
-        // 1-4 звезды → форма управляющему
-        showForm();
-      }
     }
 
-    /* Показ формы управляющему */
     function showForm() {
-      document.getElementById('managerForm').style.display = 'block';
-      window.scrollTo({ top: document.getElementById('managerForm').offsetTop, behavior: 'smooth' });
+        document.getElementById('managerForm').style.display = 'block';
+        // Если открыли форму напрямую по кнопке "Отзыв управляющему"
+        if(!currentSystem) trackEvent('click', 'open_manager_form_direct');
+        
+        window.scrollTo({ top: document.getElementById('managerForm').offsetTop, behavior: 'smooth' });
     }
 
-    /* Отправка формы управляющему (ваш старый код) */
     async function sendReview(e) {
-      e.preventDefault();
-      const fio = document.getElementById('fio').value.trim();
-      const date = document.getElementById('date').value;
-      const phone = document.getElementById('phone').value.trim();
-      const text = document.getElementById('text').value.trim();
-      const userId = document.getElementById('user_id').value || null;
+        e.preventDefault();
+        const fio = document.getElementById('fio').value.trim();
+        const date = document.getElementById('date').value;
+        const phone = document.getElementById('phone').value.trim();
+        const text = document.getElementById('text').value.trim();
 
-      if (!fio || !date || !phone || !text) { alert('Заполните все поля'); return; }
+        if (!fio || !date || !phone || !text) { alert('Заполните все поля'); return; }
 
-      await fetch('/send-telegram', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fio, date, phone, text, user_id: userId })
-      });
-      alert('Спасибо за отзыв!');
-      e.target.reset();
-      document.getElementById('managerForm').style.display = 'none';
+        await fetch('/send-telegram', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ fio, date, phone, text })
+        });
+        alert('Спасибо за отзыв!');
+        e.target.reset();
+        document.getElementById('managerForm').style.display = 'none';
     }
-  </script>
+</script>
 </body>
 </html>
