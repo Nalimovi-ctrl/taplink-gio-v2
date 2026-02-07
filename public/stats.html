@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Статистика Gio's</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { font-family: sans-serif; padding: 20px; background: #f4f4f4; }
+        .container { max-width: 900px; margin: 0 auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        h1 { text-align: center; color: #333; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background-color: #ff6600; color: white; }
+        tr:nth-child(even) { background-color: #f9f9f9; }
+        .tag { padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; color: white;}
+        .tag.visit { background: #17a2b8; }
+        .tag.click { background: #28a745; }
+        .tag.form_submit { background: #dc3545; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📊 Статистика переходов</h1>
+        <button onclick="location.reload()" style="padding:10px 20px; cursor:pointer;">Обновить</button>
+        
+        <table id="statsTable">
+            <thead>
+                <tr>
+                    <th>Время</th>
+                    <th>Тип</th>
+                    <th>Событие</th>
+                    <th>IP</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr><td colspan="4">Загрузка...</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        async function loadData() {
+            try {
+                const res = await fetch('/api/stats');
+                const data = await res.json();
+                
+                const tbody = document.querySelector('#statsTable tbody');
+                tbody.innerHTML = '';
+
+                // Сортируем: новые сверху
+                data.reverse().forEach(row => {
+                    let typeClass = 'visit';
+                    if(row.type === 'click') typeClass = 'click';
+                    if(row.type === 'form_submit') typeClass = 'form_submit';
+
+                    const html = `
+                        <tr>
+                            <td>${new Date(row.date).toLocaleString('ru-RU')}</td>
+                            <td><span class="tag ${typeClass}">${row.type}</span></td>
+                            <td>${row.target}</td>
+                            <td>${row.ip}</td>
+                        </tr>
+                    `;
+                    tbody.innerHTML += html;
+                });
+            } catch (e) {
+                document.querySelector('tbody').innerHTML = '<tr><td colspan="4">Ошибка загрузки данных</td></tr>';
+            }
+        }
+        loadData();
+    </script>
+</body>
+</html>
